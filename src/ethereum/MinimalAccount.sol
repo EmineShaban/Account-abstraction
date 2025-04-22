@@ -12,6 +12,8 @@ import {SIG_VALIDATION_FAILED, SIG_VALIDATION_SUCCESS} from "lib/account-abstrac
 
 contract MinimalAccount is IAccount, Ownable {
     error MinimalAccount__NotFromEntryPoint();
+    error MinimalAccount__CallFailed();
+    error MinimalAccount__NotFromEntryPointorOwner();
 
     IEntryPoint private immutable i_entryPoint;
 
@@ -21,8 +23,22 @@ contract MinimalAccount is IAccount, Ownable {
         }
         _;
     }  
+    
+    modifier requireFromEntryPointOrOwner(){
+        if (msg.sender != address(i_entryPoint) && msg.sender != owner()) {
+            revert MinimalAccount__NotFromEntryPointorOwner();
+        }
+        _;
+    }  
     constructor(address entryPoint) Ownable(msg.sender){
         i_entryPoint = IEntryPoint(entryPoint);
+    }
+
+    function execute(address dest, uint256 value, bytes calldata functionData) external requireFromEntryPointOrOwner {
+        (bool success, bytes memory result) = dest.call{value: value}(functionData);
+      if (!success) {
+            revert MinimalAccount__CallFailed(); 
+        }
     }
 
     function validateUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash, uint256 missingAccountFunds) external returns (uint256 validationData) {
